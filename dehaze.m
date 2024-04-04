@@ -18,7 +18,7 @@ end
 
 dark_channel = get_dark_channel(image, win_size);
 
-atmosphere = get_atmosphere(image, dark_channel);
+atmosphere = get_atmosphere_gpu(image, dark_channel);
 
 trans_est = get_transmission_estimate(image, atmosphere, omega, win_size);
 
