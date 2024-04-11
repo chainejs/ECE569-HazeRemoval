@@ -25,7 +25,12 @@ end
 
 fprintf('tm1 = %f\n', toc(start)); start = tic;
 
-atmosphere = get_atmosphere(image, dark_channel); % 0.27s
+if useGPU
+    atmosphere = get_atmosphere_gpu(image, dark_channel); % 0.27s
+else
+    atmosphere = get_atmosphere(image, dark_channel);
+end
+
 clear dark_channel;
 
 fprintf('tm2 = %f\n', toc(start)); start = tic;
