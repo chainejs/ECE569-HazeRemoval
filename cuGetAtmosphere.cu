@@ -1,68 +1,75 @@
 #include <cuda.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "mex.h"
+#include <cstdio>
+#include <cstdlib>
+#include "/usr/local/MATLAB/R2024a/toolbox/parallel/gpu/extern/include/gpu/mxGPUArray.h"
 
-__global__ void cuGetAtmosphere(double m, double n, double n_pixels,
-                                double n_search_pixels, double *dark_vec, 
-                                double* image_vec, double* indices,
+void __global__ cuGetAtmosphere(double m, double n, double n_pixels,
+                                double n_search_pixels, double const *dark_vec, 
+                                double const *image_vec, double const *indices,
                                 double *d_atmosphere){
-    float *accumulator = new float[3];
-    float *atmosphere = new float[3];
-
-    int tid = threadIdx.x + blockIdx.x * blockDim.x; 
-
-    if (threadIdx.x <= 3){
-        accumulator[tid] = 0;
+    __shared__ float shared_accum;
+    double *accumulator = new double[3];
+    
+    if (threadIdx.x == 0 && blockIdx.x < 3){
+        accumulator[blockIdx.x] = 0;
+        shared_accum = 0;
     }
 
-    if (tid < n_search_pixels){
-        for (int idx = 0; idx < 3; idx++){
-            int j = indices[tid];
-            accumulator[idx] = accumulator[idx] + image_vec[j];
+    __syncthreads();
+
+    if (threadIdx.x == 0 && blockIdx.x < 3){
+        for (int idx = 0; idx < n_search_pixels; idx++){
+            int j = indices[idx] + (blockIdx.x * n_pixels);
+            atomicAdd(&shared_accum, image_vec[j]);
         }
     }
 
     __syncthreads();
 
-    if (tid < 3){
-        atmosphere[tid] = accumulator[tid] / n_search_pixels; 
+    if (threadIdx.x == 0 && blockIdx.x < 3){
+        d_atmosphere[blockIdx.x] = shared_accum / n_search_pixels; 
     }
 }
 
+#include "mex.h"
+
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
     
-    dim3 blockDim(256);
-    dim3 gridDim(1);
-    
-    int i = 0;
+    int const blockD = 512;
+    int gridD = 30;
 
     double M = *mxGetPr(prhs[0]);
     double N = *mxGetPr(prhs[1]);
     double n_pixels = *mxGetPr(prhs[2]);
     double n_search_pixels = *mxGetPr(prhs[3]);
-    double *dark_vec = mxGetPr(prhs[4]);
-    double *image_vec = mxGetPr(prhs[5]);
-    double *indices = mxGetPr(prhs[6]);    
+
+    mxGPUArray const *dark_vec = mxGPUCreateFromMxArray(prhs[4]);
+    mxGPUArray const *image_vec = mxGPUCreateFromMxArray(prhs[5]);
+    mxGPUArray const *indices = mxGPUCreateFromMxArray(prhs[6]);
+    mxGPUArray const *atmo = mxGPUCreateFromMxArray(prhs[7]);
     
-    double *d_dark_vec, *d_image_vec, *h_atmosphere, *d_atmosphere;
+    double const *d_dark_vec = (double *)(mxGPUGetDataReadOnly(dark_vec)); 
+    double const *d_image_vec = (double *)(mxGPUGetDataReadOnly(image_vec));
+    mxGPUArray *h_atmosphere = mxGPUCreateGPUArray(mxGPUGetNumberOfDimensions(atmo),
+                                                    mxGPUGetDimensions(atmo),
+                                                    mxGPUGetClassID(atmo),
+                                                    mxGPUGetComplexity(atmo),
+                                                    MX_GPU_DO_NOT_INITIALIZE);
+    double *d_atmosphere = (double *)mxGPUGetData(h_atmosphere);
+    double const *d_indices = (double *)(mxGPUGetDataReadOnly(indices));
 
-    plhs[0] = mxCreateDoubleMatrix(3,1,mxREAL);
+    mxInitGPU();
 
-    h_atmosphere = mxGetPr(plhs[0]);
+    cuGetAtmosphere<<<gridD, blockD>>>(M, N, n_pixels, n_search_pixels, d_dark_vec, d_image_vec, d_indices, d_atmosphere);
+    printf("\n%d\n", cudaPeekAtLastError());
 
-    h_atmosphere = (double *)malloc(3 * sizeof(double));
+    plhs[0] = mxGPUCreateMxArrayOnGPU(h_atmosphere);
 
-    cudaMalloc((void **)&d_dark_vec, sizeof(dark_vec) * sizeof(double));
-    cudaMalloc((void **)&d_image_vec, sizeof(image_vec) * sizeof(double));
-    cudaMalloc((void **)&d_atmosphere, 3 * sizeof(double));
-
-    cudaMemcpy(d_dark_vec, dark_vec, sizeof(dark_vec) * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_image_vec, image_vec, sizeof(image_vec) * sizeof(double), cudaMemcpyHostToDevice);
-
-    cuGetAtmosphere<<<blockDim, gridDim>>>(M, N, n_pixels, n_search_pixels, d_dark_vec, d_image_vec, indices, d_atmosphere);
-
-    cudaMemcpy(h_atmosphere, d_atmosphere, 3 * sizeof(double), cudaMemcpyDeviceToHost);
-
-
+    mxGPUDestroyGPUArray(h_atmosphere);
+    mxGPUDestroyGPUArray(dark_vec);
+    mxGPUDestroyGPUArray(image_vec);
+    mxGPUDestroyGPUArray(indices);
+    mxGPUDestroyGPUArray(atmo);
 }
