@@ -39,7 +39,13 @@ if useGPU
     image = gpuArray(image);
 end
 
-trans_est = get_transmission_estimate(image, atmosphere, omega, win_size, useGPU); %CPU: 10.98 s GPU 0.34 s
+  if useGPU 
+        trans_est = get_transmission_estimate_gpu(image, omega, win_size, atmosphere);
+      %  fprintf('tm3 = %f\n', toc(start)); start = tic;
+      %  fprintf('this works!') 
+    else
+        trans_est = get_transmission_estimate(image, atmosphere, omega, win_size, useGPU); %CPU: 10.98 s GPU 0.34 s
+    end
 
 fprintf('tm3 = %f\n', toc(start)); start = tic;
 
