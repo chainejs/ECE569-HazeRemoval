@@ -49,11 +49,13 @@ fprintf('tm4 = %f\n', toc(start));
 
 transmission = reshape(x, m, n);
 
-radiance = get_radiance(image, transmission, atmosphere);   % 0.00 s
+if useGPU
+    radiance = get_radiance_GPU(image, transmission, atmosphere);
+else
+    radiance = get_radiance(image, transmission, atmosphere);   % 0.00 s
 
 if useGPU
     radiance = gather(radiance);
 end
 
 end
-
