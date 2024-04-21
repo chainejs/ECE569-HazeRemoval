@@ -40,7 +40,7 @@ __global__ void getRadianceKernel(double const *image, double const *max_transmi
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     // Check input and output arguments
     if (nrhs != 6) {
-        mexErrMsgIdAndTxt("getRadiance:nrhs", "Three inputs required.");
+        mexErrMsgIdAndTxt("getRadiance:nrhs", "six inputs required.");
     }
     if (nlhs != 1) {
         mexErrMsgIdAndTxt("getRadiance:nlhs", "One output required.");
