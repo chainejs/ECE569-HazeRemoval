@@ -36,4 +36,6 @@ After each one is finished compiling you will see "MEX completed successfully"
 
 6. If you want to compare results against the serial implementation, set `useGPU = false` in demo_fast.m, hit save, and re-run. Exection time is much slower.
 
+7. To experiment with different hazy images simply replace forest.jpg on line 14 in demo_fast.m with one of the 10 other images available (haze1 - haze10). For example you could use haze1.jpg. 
+
 
